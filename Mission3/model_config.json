@@ -1,0 +1,30 @@
+{
+  "experiment": "08_truncation_baseline",
+  "model": "klue/roberta-base",
+  "input": "utterances[].text only",
+  "best_internal_dev_macro_f1": 0.6214275394220473,
+  "recomputed_internal_dev_macro_f1": 0.6214275394220473,
+  "class_order": [
+    "고열",
+    "구토",
+    "두통",
+    "복통",
+    "어지러움",
+    "열상",
+    "오심",
+    "전신쇠약",
+    "호흡곤란"
+  ],
+  "decision_threshold": 0.5,
+  "max_length": 512,
+  "chunking": false,
+  "chunk_size": null,
+  "stride": null,
+  "max_chunks": 1,
+  "pooling": "CLS",
+  "attention_pooling": false,
+  "loss": "BCEWithLogitsLoss",
+  "seed": 42,
+  "internal_train_samples": 23348,
+  "internal_dev_samples": 5852
+}
