@@ -25,7 +25,7 @@ Mission1/
     ├── 05d_evaluate_provided_validation.py
     ├── inference.py                      ← 채점용 실행 스크립트
     ├── requirements.txt
-    ├── Mission1_학습노트북.ipynb
+    ├── Mission1_학습코드파일.ipynb
     ├── ecapa_ensemble_v3.ckpt
     └── README.md
 ```
