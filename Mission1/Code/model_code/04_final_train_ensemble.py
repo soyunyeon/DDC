@@ -2,19 +2,21 @@
 04_final_train_ensemble.py
 
 역할: baseline(raw+LogReg) -> L2정규화+MLP 교체 -> duration 가중평균 집계
-      -> threshold 그리드서치 -> 10-seed 앙상블 -> 통계검증(McNemar)으로 이어지는
-      실험 과정에서, 최종 채택된 구성만 골라 하나의 스크립트로 재현.
+      -> 10-seed 앙상블 -> 통계검증(McNemar)으로 이어지는 실험 과정에서,
+      최종 채택된 구성만 골라 하나의 스크립트로 재현.
 
 구성: L2 정규화 + StandardScaler + MLP(hidden=128) x 10 seed 앙상블
-      + duration 가중평균 집계 + threshold 그리드서치
+      + duration 가중평균 집계
+
+Decision Threshold: 0.5로 고정.
 
 실행하면:
   1. 이미 추출된 임베딩(shard)을 로드 (재추출 없음)
   2. baseline(raw+LogReg) 학습 - 비교 기준용
   3. MLP를 seed 10개로 학습해 앙상블 구성
-  4. val_calls로 threshold 탐색 -> Data/Validation으로 재확인
+  4. threshold 0.5 고정으로 val_calls / Data/Validation 정확도 평가
   5. McNemar 검정으로 baseline 대비 개선의 통계적 유의성 확인
-  6. 최종 모델을 .ckpt로 저장 (제출용 형식)
+  6. 최종 모델을 .ckpt로 저장 
 
 실험 과정(왜 이 구성을 택했는지의 근거: seed 안정성, 단일모델과의 비교 등)은
 Mission1_학습노트북.ipynb에 별도로 정리되어 있음.
@@ -44,6 +46,9 @@ DURATION_WEIGHT_CAP_MS = 3000
 SEEDS = list(range(10))          # 10개 seed 평균 -> 단일 seed 선택 시의 편향 회피
 MLP_HIDDEN = (128,)               # LogReg 대비 가장 크게 기여한 변경
 PREPROC_KIND = "l2"               # 임베딩 L2 정규화
+
+# Decision Threshold는 0.5로 고정 
+DECISION_THRESHOLD = 0.5
 
 
 def load_shards(shard_dir):
@@ -116,7 +121,7 @@ def main():
     print(f"Train {len(y_train)} / Val {len(meta_val)}"
           + (f" / Data-Validation {len(meta_pv)}" if pv_available else ""))
 
-    # ---- Baseline (비교 기준) ----
+    # ---- Baseline (비교 기준, threshold 0.5) ----
     print("\nBaseline (raw + LogisticRegression) 학습 중...")
     scaler_base = StandardScaler()
     X_train_base = scaler_base.fit_transform(X_train)
@@ -124,13 +129,13 @@ def main():
     clf_base = LogisticRegression(max_iter=2000, class_weight="balanced")
     clf_base.fit(X_train_base, y_train)
     val_proba_base = clf_base.predict_proba(X_val_base)[:, 1]
-    val_true, val_pred_base = aggregate_mean(meta_val, val_proba_base, threshold=0.5)
+    val_true, val_pred_base = aggregate_mean(meta_val, val_proba_base, threshold=DECISION_THRESHOLD)
     print(f"  Baseline val_calls Accuracy: {accuracy_score(val_true, val_pred_base)*100:.2f}%")
 
     if pv_available:
         X_pv_base = scaler_base.transform(X_pv)
         pv_proba_base = clf_base.predict_proba(X_pv_base)[:, 1]
-        pv_true, pv_pred_base = aggregate_mean(meta_pv, pv_proba_base, threshold=0.5)
+        pv_true, pv_pred_base = aggregate_mean(meta_pv, pv_proba_base, threshold=DECISION_THRESHOLD)
         print(f"  Baseline Data/Validation Accuracy: {accuracy_score(pv_true, pv_pred_base)*100:.2f}%")
 
     # ---- 최종 구성: L2정규화 + MLP 10-seed 앙상블 ----
@@ -164,28 +169,19 @@ def main():
 
     val_proba_ens = np.mean(val_proba_list, axis=0)
 
-    # ---- threshold 그리드서치 (val_calls 기준) ----
-    _, _, val_call_proba = aggregate_duration_weighted(meta_val, val_proba_ens, 0.5)
-    val_true_full = meta_val.groupby("call_id")["gender"].first().map({"M": 0, "F": 1}).reindex(val_call_proba.index)
-
-    thresholds = np.arange(0.30, 0.71, 0.01)
-    best_thr, best_thr_acc = 0.5, 0.0
-    for thr in thresholds:
-        pred = (val_call_proba >= thr).astype(int)
-        acc = accuracy_score(val_true_full, pred)
-        if acc > best_thr_acc:
-            best_thr_acc, best_thr = acc, thr
-
-    val_pred_ens = (val_call_proba >= best_thr).astype(int)
-    print(f"\n최적 threshold(val_calls 기준): {best_thr:.2f}  (val_calls Accuracy: {best_thr_acc*100:.2f}%)")
+    # ---- Decision Threshold 0.5 고정으로 평가 ----
+    val_true_full, val_pred_ens, val_call_proba = aggregate_duration_weighted(
+        meta_val, val_proba_ens, DECISION_THRESHOLD
+    )
+    print(f"\nDecision Threshold: {DECISION_THRESHOLD} (대회 규정상 고정값, 탐색하지 않음)")
+    print(f"val_calls Accuracy: {accuracy_score(val_true_full, val_pred_ens)*100:.2f}%")
 
     if pv_available:
         pv_proba_ens = np.mean(pv_proba_list, axis=0)
-        _, _, pv_call_proba = aggregate_duration_weighted(meta_pv, pv_proba_ens, 0.5)
-        pv_true_full = meta_pv.groupby("call_id")["gender"].first().map({"M": 0, "F": 1}).reindex(pv_call_proba.index)
-        pv_pred_ens = (pv_call_proba >= best_thr).astype(int)
-        pv_acc_ens = accuracy_score(pv_true_full, pv_pred_ens)
-        print(f"Data/Validation Accuracy (threshold={best_thr:.2f}): {pv_acc_ens*100:.2f}%")
+        pv_true_full, pv_pred_ens, pv_call_proba = aggregate_duration_weighted(
+            meta_pv, pv_proba_ens, DECISION_THRESHOLD
+        )
+        print(f"Data/Validation Accuracy: {accuracy_score(pv_true_full, pv_pred_ens)*100:.2f}%")
 
     # ---- McNemar 검정 (baseline 대비 유의성) ----
     print("\nMcNemar 검정 (baseline vs 최종 앙상블)")
@@ -204,7 +200,7 @@ def main():
             "preproc_kind": PREPROC_KIND,
             "weight_mode": "duration",
             "duration_weight_cap_ms": DURATION_WEIGHT_CAP_MS,
-            "threshold": float(best_thr),
+            "threshold": float(DECISION_THRESHOLD),
             "seeds": SEEDS,
         },
         out_path,
