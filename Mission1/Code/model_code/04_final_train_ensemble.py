@@ -8,9 +8,7 @@
 구성: L2 정규화 + StandardScaler + MLP(hidden=128) x 10 seed 앙상블
       + duration 가중평균 집계
 
-Decision Threshold: 대회 규정("Decision Threshold 관련 기준" 공지, Q1~Q5)에 따라
-      0.5로 고정. Train/Validation 어느 쪽으로도 threshold를 탐색/조정하지 않음
-      (규정 Q2: OOF나 별도 subset을 이용한 threshold 탐색도 금지 대상).
+Decision Threshold: 0.5로 고정. 
 
 Probability Calibration: 규정 Q4에 따라 확률값 자체를 보정하는 것은 허용되므로,
       val_calls(학습에 전혀 쓰이지 않은 held-out)로 Platt scaling을 학습해서
@@ -24,7 +22,7 @@ Probability Calibration: 규정 Q4에 따라 확률값 자체를 보정하는 �
   4. threshold 0.5 고정으로 val_calls / Data/Validation 정확도 평가
   5. McNemar 검정으로 baseline 대비 개선의 통계적 유의성 확인
   6. val_calls로 Platt scaling 학습 후 calibration 전/후 정확도 비교
-  7. 최종 모델을 .ckpt로 저장 (제출용 형식)
+  7. 최종 모델을 .ckpt로 저장
 
 실험 과정(왜 이 구성을 택했는지의 근거: seed 안정성, 단일모델과의 비교 등)은
 Mission1_학습노트북.ipynb에 별도로 정리되어 있음.
@@ -55,11 +53,10 @@ SEEDS = list(range(10))          # 10개 seed 평균 -> 단일 seed 선택 시�
 MLP_HIDDEN = (128,)               # LogReg 대비 가장 크게 기여한 변경
 PREPROC_KIND = "l2"               # 임베딩 L2 정규화
 
-# 대회 규정: Decision Threshold는 0.5로 고정 (탐색/조정 금지)
+# Decision Threshold는 0.5로 고정 
 DECISION_THRESHOLD = 0.5
 
-# 확률 calibration 사용 여부 (규정 Q4: calibration 자체는 허용되나, 이후에도
-# Decision Threshold는 0.5로 고정해야 함). val_calls로 Platt scaling을 학습해서
+# 확률 calibration 사용 여부: val_calls로 Platt scaling을 학습해서
 # Data/Validation에서도 실제로 개선되는지 확인한 뒤 True/False를 결정할 것 —
 # 아래 실행 로그의 "calibration 후" Data/Validation 정확도를 보고 판단.
 USE_PROBABILITY_CALIBRATION = True
@@ -201,7 +198,7 @@ def main():
 
     val_proba_ens = np.mean(val_proba_list, axis=0)
 
-    # ---- Decision Threshold 0.5 고정으로 평가 (탐색하지 않음, 대회 규정) ----
+    # ---- Decision Threshold 0.5 고정으로 평가 ----
     val_true_full, val_pred_ens, val_call_proba = aggregate_duration_weighted(
         meta_val, val_proba_ens, DECISION_THRESHOLD
     )
@@ -223,9 +220,7 @@ def main():
         b, c, p = mcnemar_exact(pv_pred_base.to_numpy(), pv_pred_ens.to_numpy(), pv_true_full.to_numpy())
         print(f"  Data/Validation: 고침 {b} / 새로틀림 {c}  (p={p:.6f}) ->", "유의미" if p < 0.05 else "유의성 부족")
 
-    # ---- Probability Calibration (Platt scaling, 규정 Q4 허용) ----
-    # val_calls는 학습에 전혀 쓰이지 않은 held-out이므로, 이 데이터로 "확률값을 더
-    # 적절하게 보정"하는 것은 규정 위반이 아님 (Decision Threshold는 그대로 0.5).
+    # ---- Probability Calibration (Platt scaling) ----
     print("\nProbability Calibration (Platt scaling, val_calls로 학습)")
     calibrator = fit_platt_calibrator(val_call_proba.to_numpy(), val_true_full.to_numpy())
 
@@ -243,7 +238,7 @@ def main():
     print(f"\nUSE_PROBABILITY_CALIBRATION = {USE_PROBABILITY_CALIBRATION} 로 최종 저장"
           " (위 Data/Validation calibration 전/후 수치를 보고 이 값을 True/False로 정할 것)")
 
-    # ---- 최종 모델을 .ckpt로 저장 (제출용) ----
+    # ---- 최종 모델을 .ckpt로 저장 ----
     out_path = MODEL_OUT_DIR / "ecapa_ensemble_v3.ckpt"
     torch.save(
         {
