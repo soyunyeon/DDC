@@ -26,8 +26,7 @@ Mission1/
     ├── inference.py                      ← 채점용 실행 스크립트
     ├── requirements.txt
     ├── Mission1_학습노트북.ipynb
-    ├── models/
-    │   └── ecapa_ensemble_v3.ckpt
+    ├── ecapa_ensemble_v3.ckpt
     └── README.md
 ```
 
