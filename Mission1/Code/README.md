@@ -37,11 +37,10 @@ Mission1/
 ## 환경 설정
 
 ```bash
-pip install torch==2.5.1+cu121 torchaudio==2.5.1+cu121 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 ```
 
-GPU가 없는 환경이면 `+cu121` 없이 일반 CPU 빌드를 설치해도 됩니다. `inference.py`가 `torch.cuda.is_available()`로 자동 감지해서 CPU로 전환합니다.
+Python 3.11 또는 3.12가 필요합니다. GPU가 없는 환경이면 `inference.py`가 `torch.cuda.is_available()`로 자동 감지해서 CPU로 전환합니다.
 
 ## 모델 구성 요약
 
