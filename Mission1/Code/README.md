@@ -52,21 +52,10 @@ frozen ECAPA-TDNN(speechbrain/spkrec-ecapa-voxceleb)으로 신고자 발화 segm
 
 **(1) 모델 파라미터 수**
 
-- Frozen ECAPA-TDNN: `[[ECAPA_PARAM_COUNT]]`개 (아래 스니펫으로 직접 확인)
+- Frozen ECAPA-TDNN: 20,767,552개 
 - 분류기(MLP 10개 앙상블): 24,833개 × 10 = 248,330개
 - Probability calibration(Platt scaling, 1-feature 로지스틱 회귀): 2개 (weight 1 + bias 1, 무시 가능한 수준)
-- Total = Active = 위 세 값의 합 (frozen 구간도 forward pass에는 전부 관여하므로 sparse/MoE 구조 아님)
-
-파라미터 수 확인용 스니펫:
-
-```python
-from speechbrain.inference.speaker import EncoderClassifier
-classifier = EncoderClassifier.from_hparams(
-    source="speechbrain/spkrec-ecapa-voxceleb",
-    savedir="../pretrained_models/spkrec-ecapa-voxceleb",
-)
-print(sum(p.numel() for p in classifier.mods.embedding_model.parameters()))
-```
+- Total = Active = 약 21,015,884개 (frozen 구간도 forward pass에는 전부 관여하므로 sparse/MoE 구조 아님)
 
 **(2) 학습 및 추론 환경**
 
