@@ -3,7 +3,7 @@
 ## 실행 방법
 
 ```bash
-python inference.py --audio_dir {wav 폴더} --label_dir {json 폴더} --ckpt_path ./models/ecapa_ensemble_v3.ckpt --output ./outputs/mission1.csv
+python inference.py --audio_dir {wav 폴더} --label_dir {json 폴더} --ckpt_path ./ecapa_ensemble_v3.ckpt --output ./outputs/mission1.csv
 ```
 
 `--label_dir`의 JSON에서 startAt, endAt, speaker 정보만 사용합니다. gender 필드는 inference.py 어디에서도 읽지 않습니다.
