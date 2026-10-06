@@ -44,7 +44,7 @@ Python 3.11 또는 3.12가 필요합니다. GPU가 없는 환경이면 `inferenc
 
 ## 모델 구성 요약
 
-frozen ECAPA-TDNN(speechbrain/spkrec-ecapa-voxceleb)으로 신고자 발화 segment마다 192차원 임베딩을 추출하고, 그 위에 MLP(은닉층 128개) 10개를 서로 다른 random seed로 학습시켜 평균 낸 앙상블로 성별을 예측합니다. segment별 예측 확률은 duration에 비례한 가중평균으로 통화 단위로 집계하고, val_calls(학습에 쓰이지 않은 held-out)로 학습한 **Platt scaling(확률 calibration)**을 적용한 뒤, **Decision Threshold 0.5**(대회 규정상 고정값 — Train/Validation 어느 쪽으로도 탐색·조정하지 않음)를 적용해 최종 M/F를 결정합니다. calibration은 대회 공지 "Decision Threshold 관련 기준" Q4에서 허용하는 범위로, 확률값 자체를 보정할 뿐 cutoff(0.5)는 그대로 유지합니다.
+frozen ECAPA-TDNN(speechbrain/spkrec-ecapa-voxceleb)으로 신고자 발화 segment마다 192차원 임베딩을 추출하고, 그 위에 MLP(은닉층 128개) 10개를 서로 다른 random seed로 학습시켜 평균 낸 앙상블로 성별을 예측합니다. segment별 예측 확률은 duration에 비례한 가중평균으로 통화 단위로 집계하고, val_calls(학습에 쓰이지 않은 held-out)로 학습한 **Platt scaling(확률 calibration)**을 적용한 뒤, **Decision Threshold 0.5**를 적용해 최종 M/F를 결정합니다. calibration은 대회 공지 "Decision Threshold 관련 기준"에서 허용하는 범위로, 확률값 자체를 보정할 뿐 cutoff(0.5)는 그대로 유지합니다.
 
 검증 결과: 팀 공통 held-out(val_calls, 5,840통화) **98.07%**, 대회 제공 Validation(3,640통화) **98.27%**.
 
