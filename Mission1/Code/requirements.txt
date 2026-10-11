@@ -1,0 +1,11 @@
+torch>=2.5.1,<2.9
+torchaudio>=2.5.1,<2.9
+torchvision>=0.20.1,<0.24
+speechbrain==1.1.1
+scikit-learn==1.8.0
+scipy==1.17.1
+pandas==3.0.3
+numpy==2.4.4
+soundfile==0.14.0
+huggingface_hub==1.30.0
+joblib==1.5.3
