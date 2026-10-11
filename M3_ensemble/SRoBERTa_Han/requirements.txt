@@ -1,0 +1,6 @@
+# 학습/추론 PC에서 `pip freeze`로 확인한 버전으로 고정할 것
+# (예: torch==2.5.1+cu121 -> 제출 시에는 torch==2.5.1)
+torch
+transformers
+numpy
+pandas
