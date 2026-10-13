@@ -30,9 +30,9 @@ Mission1/
     └── README.md
 ```
 
-01~03 , 05a~05c는 원본 데이터에서 임베딩(shard)을 만드는 전처리 파이프라인이고, 04가 그 임베딩으로 최종 모델을 학습·저장합니다. 05d는 저장된 모델로 Data/Validation을 다시 예측해보는 선택적 검증 스크립트입니다. 채점에는 `inference.py` 한 번 실행으로 충분하며, 나머지는 학습 과정을 재현하기 위한 코드입니다.
+01\~03, 05a\~05c는 원본 데이터에서 임베딩(shard)을 만드는 전처리 파이프라인이고, 04가 그 임베딩으로 최종 모델을 학습·저장합니다. 05d는 저장된 모델로 Data/Validation을 다시 예측해보는 선택적 검증 스크립트입니다. 최종적으로 inference.py 한 번 실행으로 충분하며, 나머지는 학습 과정을 재현하기 위한 코드입니다.
 
-`pretrained_models` 폴더는 인터넷 연결 없이도 실행되도록 로컬에 포함했습니다. `inference.py`가 이 폴더를 먼저 찾고, 없을 때만 Hugging Face Hub에서 내려받습니다.
+pretrained_models 폴더는 인터넷 연결 없이도 실행되도록 로컬에 포함했습니다. inference.py가 이 폴더를 먼저 찾고, 없을 때만 Hugging Face Hub에서 내려받습니다.
 
 ## 환경 설정
 
@@ -44,9 +44,9 @@ Python 3.11 또는 3.12가 필요합니다. GPU가 없는 환경이면 `inferenc
 
 ## 모델 구성 요약
 
-frozen ECAPA-TDNN(speechbrain/spkrec-ecapa-voxceleb)으로 신고자 발화 segment마다 192차원 임베딩을 추출하고, 그 위에 MLP(은닉층 128개) 10개를 서로 다른 random seed로 학습시켜 평균 낸 앙상블로 성별을 예측합니다. segment별 예측 확률은 duration에 비례한 가중평균으로 통화 단위로 집계하고, val_calls(학습에 쓰이지 않은 held-out)로 학습한 **Platt scaling(확률 calibration)**을 적용한 뒤, **Decision Threshold 0.5**를 적용해 최종 M/F를 결정합니다. calibration은 대회 공지 "Decision Threshold 관련 기준"에서 허용하는 범위로, 확률값 자체를 보정할 뿐 cutoff(0.5)는 그대로 유지합니다.
+frozen ECAPA-TDNN(speechbrain/spkrec-ecapa-voxceleb)으로 신고자 발화 segment마다 192차원 임베딩을 추출하고, 그 위에 MLP(은닉층 128개) 10개를 서로 다른 random seed로 학습시켜 평균 낸 앙상블로 성별을 예측합니다. segment별 예측 확률은 duration에 비례한 가중평균으로 통화 단위로 집계하고, val_calls(학습에 쓰이지 않은 held-out)로 학습한 Platt scaling(확률 calibration)을 적용한 뒤, Decision Threshold 0.5를 적용해 최종 M/F를 결정합니다. calibration은 대회 공지 "Decision Threshold 관련 기준"에서 허용하는 범위로, 확률값 자체를 보정할 뿐 cutoff(0.5)는 그대로 유지합니다.
 
-검증 결과: 팀 공통 held-out(val_calls, 5,840통화) **98.07%**, 대회 제공 Validation(3,640통화) **98.27%**.
+검증 결과: 팀 공통 held-out(val_calls, 5,840통화) 98.07%, 대회 제공 Validation(3,640통화) 98.27%.
 
 ## 추론 시간 관련 안내
 
@@ -68,7 +68,7 @@ frozen ECAPA-TDNN(speechbrain/spkrec-ecapa-voxceleb)으로 신고자 발화 segm
 
 **(4) 측정된 추론 시간**
 
-Data/Validation 3,640통화(58,102개 신고자 segment) 기준, RTX 3050 4GB에서 전체 추론 **391.5초(약 6.5분)**.
+Data/Validation 3,640통화(58,102개 신고자 segment) 기준, RTX 3050 4GB에서 전체 추론 391.5초(약 6.5분).
 
 - 통화당 평균: 약 0.108초
 - segment당 평균: 약 6.74ms
