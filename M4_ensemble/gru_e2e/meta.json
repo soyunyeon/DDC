@@ -1,0 +1,20 @@
+{
+  "backbone": "klue/roberta-large",
+  "speaker_dim": 16,
+  "hidden": 256,
+  "num_layers": 1,
+  "dropout": 0.3,
+  "max_length": 64,
+  "symptom_classes": [
+    "고열",
+    "구토",
+    "두통",
+    "복통",
+    "어지러움",
+    "열상",
+    "오심",
+    "전신쇠약",
+    "호흡곤란"
+  ],
+  "e2e": true
+}
