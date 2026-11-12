@@ -1,0 +1,78 @@
+{
+  "source": "D:\\DCC_Backup\\M4_Qwen\\val_all_merged.jsonl",
+  "split_assumption": "Internal Validation (mission4_val.jsonl); not independently verified as team val_holdout",
+  "label_file_mapping": "<call_id>.json from shared common preprocessing",
+  "calls": 5840,
+  "prefix_rows": 179169,
+  "calls_with_empty_gold": 0,
+  "policy_name": "k2_c70_cap28",
+  "stop_policy": {
+    "min_wait": 5,
+    "stable_count": 2,
+    "confidence": 0.7,
+    "max_wait": 28,
+    "symptom_threshold": 0.5,
+    "nonempty_mask_required_for_stable_stop": true
+  },
+  "natural_end_calls": 382,
+  "mean_halt_step": 11.332191780821917,
+  "macro_f1_internal": 0.526618993436649,
+  "mean_earliness_internal": 0.8016618236860364,
+  "score_internal_official_formula": 0.42217034266612885,
+  "class_metrics": {
+    "고열": {
+      "f1": 0.5848336061102019,
+      "tp": 536,
+      "fp": 244,
+      "fn": 517
+    },
+    "구토": {
+      "f1": 0.4543582704186685,
+      "tp": 331,
+      "fp": 226,
+      "fn": 569
+    },
+    "두통": {
+      "f1": 0.4118942731277533,
+      "tp": 187,
+      "fp": 127,
+      "fn": 407
+    },
+    "복통": {
+      "f1": 0.7393553521687226,
+      "tp": 929,
+      "fp": 205,
+      "fn": 450
+    },
+    "어지러움": {
+      "f1": 0.5544635544635544,
+      "tp": 677,
+      "fp": 521,
+      "fn": 567
+    },
+    "열상": {
+      "f1": 0.7735993860322333,
+      "tp": 504,
+      "fp": 134,
+      "fn": 161
+    },
+    "오심": {
+      "f1": 0.1536723163841808,
+      "tp": 68,
+      "fp": 161,
+      "fn": 588
+    },
+    "전신쇠약": {
+      "f1": 0.4931367564819522,
+      "tp": 485,
+      "fp": 406,
+      "fn": 591
+    },
+    "호흡곤란": {
+      "f1": 0.5742574257425742,
+      "tp": 406,
+      "fp": 230,
+      "fn": 372
+    }
+  }
+}

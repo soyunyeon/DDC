@@ -1,0 +1,13 @@
+# Known working sw51 environment (Python 3.11.18; RTX 2080 Ti; CUDA driver 13.0)
+# Install CUDA-enabled PyTorch separately according to GPU/driver:
+# python -m pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cu126
+transformers==4.53.3
+peft==0.21.2
+accelerate==1.9.0
+bitsandbytes==0.46.1
+sentencepiece
+safetensors
+numpy
+soundfile
+scipy
+tqdm
