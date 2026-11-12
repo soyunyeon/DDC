@@ -1,0 +1,87 @@
+{
+  "classes": [
+    "고열",
+    "구토",
+    "두통",
+    "복통",
+    "어지러움",
+    "열상",
+    "오심",
+    "전신쇠약",
+    "호흡곤란"
+  ],
+  "class_order_note": "모든 확률 열과 모델 출력은 공식 SYMPTOM_CLASSES 순서 그대로",
+  "missions": {
+    "4-1": {
+      "run": "klue_sj1",
+      "desc": "KLUE-RoBERTa, BCE + soft Jaccard 손실로 1 epoch 추가 학습"
+    },
+    "4-2": {
+      "run": "klue_base",
+      "desc": "KLUE-RoBERTa, BCE"
+    }
+  },
+  "input": {
+    "format": "발화마다 ' [대원] 텍스트' 또는 ' [신고자] 텍스트' (speaker 0=대원, 1=신고자)를 토큰화해 1..t번째를 이어 붙이고 [CLS] ... [SEP]으로 감쌈",
+    "max_len": 512,
+    "head": 128,
+    "truncation": "넘치면 앞 128토큰 + 가장 최근 부분",
+    "uses": "utt.text, utt.speaker만 사용 (오디오, 전체 길이, label_file, utt_id 사용 안 함)"
+  },
+  "decision": {
+    "threshold": 0.5,
+    "empty_allowed": true,
+    "note": "0.5 이상이 없으면 빈 리스트 (1위 채우기 없음)"
+  },
+  "halt_policy_4_2": {
+    "t_min": 6,
+    "k": 3,
+    "threshold": 0.5,
+    "rule": "t >= t_min 이고, 0.5 이상 증상 집합이 비어 있지 않으면서 k번 연속 같으면 중단하고 그 집합을 반환. 끝까지 안 멈추면 마지막 시점의 0.5 이상 집합",
+    "selected_on": "val_holdout에서 t_min {5,6,7,8,10,12,15,20} x k {1,2,3,4} 시뮬레이션 (sim_42.py)"
+  },
+  "scores": {
+    "klue_sj1": {
+      "val_holdout_41": 0.4798,
+      "official_41": 0.4817
+    },
+    "klue_base": {
+      "val_holdout_41": 0.4515,
+      "val_holdout_42": {
+        "score": 0.4422,
+        "macro_f1": 0.5512,
+        "earliness": 0.8021,
+        "per_class_f1": {
+          "고열": 0.6208,
+          "구토": 0.4837,
+          "두통": 0.4614,
+          "복통": 0.7534,
+          "어지러움": 0.5897,
+          "열상": 0.8196,
+          "오심": 0.1098,
+          "전신쇠약": 0.5133,
+          "호흡곤란": 0.6097
+        }
+      },
+      "official_41": 0.449,
+      "official_42": {
+        "score": 0.4464,
+        "macro_f1": 0.5576,
+        "earliness": 0.8006,
+        "per_class_f1": {
+          "고열": 0.6089,
+          "구토": 0.5018,
+          "두통": 0.4649,
+          "복통": 0.7625,
+          "어지러움": 0.5888,
+          "열상": 0.8347,
+          "오심": 0.1207,
+          "전신쇠약": 0.5137,
+          "호흡곤란": 0.6226
+        }
+      }
+    }
+  },
+  "score_method": "공식 score.py의 moment_score / macro_f1 / earliness_weight로 계산 (proxy 아님). val_holdout = 팀 val 5,840건, official = Data/Validation 3,640건 (평가만)",
+  "checkpoint": "ckpt/klue_encoder.pt (846MB, 4-1/4-2 모델 둘 다 포함). GitHub 100MB 제한을 넘으므로 별도 전달"
+}

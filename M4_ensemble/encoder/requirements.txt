@@ -1,0 +1,8 @@
+# Python 3.11
+# GPU(CUDA 11.8) 설치: pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+torch==2.6.0
+transformers==5.18.0
+numpy
+soundfile
+scipy
+tqdm
