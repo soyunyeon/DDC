@@ -1,5 +1,7 @@
 # Encoder (KLUE-RoBERTa) 앙상블용 자료
 
+체크포인트 파일 (.pt/.pth/.ckpt) -> https://drive.google.com/file/d/1cCyKFonZ43G02XPkHmNq5Ll-ehs0TzW6/view?usp=sharing
+
 요청 항목 순서대로 정리했다. 점수는 전부 **공식 score.py 함수로 계산한 값**(proxy 아님)이고, 판정은 0.5 고정, 0.5 이상이 없으면 빈 리스트다.
 
 ## Mission 4-1
