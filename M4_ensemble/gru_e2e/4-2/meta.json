@@ -1,0 +1,61 @@
+{
+  "mission": "4-2",
+  "model": {
+    "description": "M4-1 체크포인트(e2e_large)와 공유하지 않는, M4-2 전용 독립 모델. 뼈대는 동일(klue-roberta-large 발화 임베딩 + GRU 시퀀스 모델)하지만 학습 방식이 다름.",
+    "backbone": "klue/roberta-large",
+    "training_additions_vs_m4_1": [
+      "랜덤 길이 truncation 증강 (trunc_prob=0.5) - 짧은 입력에서도 안정적으로 판단하도록 직접 학습",
+      "시간축 안정성 정칙화 (stability_weight=0.1, margin=0.02) - 정답 클래스에 한해 확률이 직전 시점보다 떨어지면 hinge 페널티. 결정 규칙이 아니라 학습 목표이므로 threshold 고정 규정과 무관",
+      "pooling=mean(masked-mean), CLS 풀링 대비 val_holdout에서 더 우수함을 확인(0.4216 vs 0.4081)"
+    ],
+    "checkpoint_not_shared_with_m4_1": true
+  },
+  "halt_policy": {
+    "name": "stability-based K-streak (model-agnostic, 코드: halt_policy_K_streak.py)",
+    "rule": "매 시점 9-class를 0.5로 이진 판정 -> 그 판정 집합이 최근 K개 시점 연속으로 동일하면 그 시점에 중단, 그 집합을 최종 예측으로 반환. 끝까지 안정 안 되면 마지막 시점에서 중단(listen-to-end).",
+    "K": 6,
+    "decision_threshold": 0.5,
+    "note_on_threshold": "halt 판단에 쓰는 기준값도 0.5 고정. 별도의 confidence threshold나 margin 기준을 새로 만들지 않음 - 이미 0.5로 판정된 결과의 '반복 여부'만 봄 (주최측 공지 2번과 합치).",
+    "min_possible_halt_step": 6,
+    "causal": "매 시점 판단은 그 시점까지의 정보만 사용 (대화 전체 길이/총 발화수 미사용)",
+    "live_vs_simulation_verified": "inference_gru_e2e.py의 Predictor.step() 라이브 실행과 이 오프라인 시뮬레이션이 val_holdout 20건 샘플에서 100% 일치 확인(halt_step, symptom 전부 동일)"
+  },
+  "evaluation": {
+    "scoring_code": "공식 score.py --mission 4-2 (자체 proxy 지표 아님)",
+    "val_holdout": {
+      "data": "val_holdout (train에서 분할한 자체 검증셋, 5,840콜) - 공식 validation 폴더 아님",
+      "score": 0.4216,
+      "macro_f1": 0.5246,
+      "avg_halt_step": 10.7,
+      "median_halt_step": 10
+    },
+    "official_val": {
+      "data": "공식 Validation 셋 (Shared/Validation, 3,640콜) - 최종 제출 기준 수치",
+      "score": 0.4273,
+      "macro_f1": 0.5323,
+      "avg_earliness": 0.8027,
+      "per_class_f1": {
+        "고열": 0.5848, "구토": 0.4120, "두통": 0.4278, "복통": 0.6492,
+        "어지러움": 0.5305, "열상": 0.7903, "오심": 0.3538,
+        "전신쇠약": 0.4785, "호흡곤란": 0.5641
+      }
+    },
+    "baseline_for_comparison": {
+      "description": "M4-1과 체크포인트를 공유하던 이전 버전(e2e_large, K=7, val_holdout 기준)",
+      "score": 0.3995
+    },
+    "k_sweep_on_this_model_val_holdout": {
+      "3": 0.3527, "4": 0.4048, "5": 0.4212, "6": 0.4216, "7": 0.4192,
+      "8": 0.4145, "9": 0.4075, "10": 0.4015, "12": 0.3881, "15": 0.3674,
+      "9999_listen_to_end": 0.3065
+    }
+  },
+  "files_in_this_handoff": {
+    "halt_policy_K_streak.py": "halt 정책 코드 (05_simulate_halt.py 원본, probs CSV 위에서 K만 바꿔 시뮬레이션하는 범용 스크립트)",
+    "val_holdout_final_predictions.csv": "val_holdout 5,840콜 각각의 최종 예측 (label_file, halt_step, 9개 증상 0/1 컬럼)",
+    "mission4-2_official.csv": "공식 val 3,640콜 각각의 최종 예측 (label_file, halt_step, symptom 세미콜론 포맷, 공식 제출 규격 그대로)",
+    "score_4-2_official.json": "공식 val 채점 상세 결과 (score.py --out_json 원본)",
+    "meta.json": "이 파일"
+  },
+  "note": "M4-1에서 공유받은 val_holdout probs.csv를 그대로 쓰신다고 하셔서 별도 probs 파일은 포함하지 않았습니다. 이 모델의 probs가 필요하시면 별도로 요청해주세요. 앙상블 비교는 val_holdout 기준으로 진행하시면 되고, official_val 수치는 참고용(최종 제출 성능 확인)입니다."
+}
