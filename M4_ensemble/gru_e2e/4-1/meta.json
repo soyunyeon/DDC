@@ -1,20 +1,65 @@
 {
-  "backbone": "klue/roberta-large",
-  "speaker_dim": 16,
-  "hidden": 256,
-  "num_layers": 1,
-  "dropout": 0.3,
-  "max_length": 64,
-  "symptom_classes": [
-    "고열",
-    "구토",
-    "두통",
-    "복통",
-    "어지러움",
-    "열상",
-    "오심",
-    "전신쇠약",
-    "호흡곤란"
-  ],
-  "e2e": true
+  "mission": "4-1",
+  "model": {
+    "description": "ensemble/4-1(e2e_large, BCE-only)의 best.pt에서 이어 학습(resume). 아키텍처는 100% 동일(klue-roberta-large + GRU), 체크포인트의 encoder/GRU/classifier 가중치까지 전부 상속하고 1 epoch만 추가 학습했다.",
+    "backbone": "klue/roberta-large",
+    "base_checkpoint": "ensemble/4-1/best.pt (e2e_large, official val 0.4877)",
+    "training_script": "16_train_gru_e2e_jaccard.py (06_train_gru_e2e.py를 모듈로 재사용, compute_loss에 soft Jaccard 항만 추가, --schedule_epochs로 lr 감쇠 속도를 실제 epoch 수와 분리)",
+    "loss": "BCE(pos_weight cap=3.0) + lambda_jaccard * (1 - soft_jaccard), soft_jaccard = sum_c(p*y) / sum_c(p+y-p*y)",
+    "final_hyperparameters": {
+      "lambda_jaccard": 8.0,
+      "pos_weight_cap": 3.0,
+      "epochs": 1,
+      "schedule_epochs": 2,
+      "schedule_epochs_meaning": "실제로는 1epoch만 돌지만 코사인 lr 감쇠는 2epoch 기준으로 계산 - 그 1epoch이 끝나는 시점에 lr이 원래 lr의 50%까지만 줄어든 상태로 끝남 (완전히 0으로 줄어드는 schedule_epochs=1보다 나음, 그렇다고 3/4처럼 더 완만한 게 낫지도 않음 - 2가 꼭짓점)",
+      "lr_encoder": 1e-5,
+      "lr_head": 1e-4,
+      "warmup_ratio": 0.0
+    },
+    "decision_threshold": "0.5 고정, 변경 없음 - 자카드 항/pos_weight/lr 스케줄은 전부 학습에만 영향, 추론·판정 로직(inference_gru_e2e.py)은 e2e_large와 동일",
+    "checkpoint_not_shared_with_e2e_large": true
+  },
+  "rationale": {
+    "problem": "15_confusion_analysis.py로 오심 등 여러 클래스를 분석한 결과, 특정 클래스 쌍과의 혼동이 아니라 예측 집합이 정답 집합보다 전체적으로 비대해지는(과잉예측) 패턴이 확인됨 (오심 precision 0.293 << recall 0.389). 클래스 독립적인 BCE는 이 '집합 크기' 자체를 벌주지 않음.",
+    "fix_1_loss": "4-1 채점식(클래스별 이진 F1 평균, TN 제외)이 Jaccard와 동치이므로, 이를 미분 가능한 형태로 손실에 직접 반영.",
+    "fix_2_pos_weight": "과잉예측 문제와 같은 방향으로, 희귀 클래스를 양성 쪽으로 과하게 밀던 pos_weight_cap을 5.0->3.0으로 낮춤. 자카드 손실과 보완적으로 작동.",
+    "fix_3_lr_schedule": "1epoch resume 시 코사인 감쇠가 그 1epoch 끝에 lr을 0까지 떨어뜨려서 학습 후반부 업데이트가 사실상 멈춰있었음. schedule_epochs로 감쇠 속도만 늦춰서(실제 epoch 수는 그대로) 1epoch 전체에 걸쳐 더 유의미한 업데이트가 이뤄지게 함."
+  },
+  "experiment_log": {
+    "note": "전부 팀 val(5,840건, train에서 분할한 자체 검증셋)로 동일 파이프라인(07_eval_fast.py + 공식 score.py)에서 스윕. 공식 Validation은 최종 확인에만 사용.",
+    "team_val": {
+      "0.0_baseline_e2e_large": 0.4797,
+      "lambda_sweep (pos_weight_cap=5.0, schedule_epochs=epochs)": {
+        "1.0": 0.4898, "2.0": 0.4940, "4.0": 0.5044, "8.0": 0.5081
+      },
+      "pos_weight_cap_sweep (lambda=8.0, epochs=1)": {
+        "5.0": 0.5081, "3.0": 0.5113, "2.0": 0.5110
+      },
+      "epochs_check (lambda=8.0, pos_weight_cap=5.0)": {
+        "real_epochs=1": 0.5081, "real_epochs=2_both_schedule_and_run": 0.5078
+      },
+      "schedule_epochs_sweep (lambda=8.0, pos_weight_cap=3.0, real_epochs=1 고정)": {
+        "schedule_epochs=1 (lr 잔존 0%)": 0.5113,
+        "schedule_epochs=2 (lr 잔존 50%)": 0.5125,
+        "schedule_epochs=3 (lr 잔존 75%)": 0.5086
+      },
+      "final_selected": 0.5125
+    },
+    "selection_criterion": "각 하이퍼파라미터를 순서대로(lambda -> pos_weight_cap -> lr schedule) 한 번에 하나씩만 바꿔가며 팀 val에서 국소 최적점 탐색. 매 축마다 증가->감소 전환(고원 또는 역전)을 확인한 지점에서 멈춤.",
+    "official_validation_confirmation": {
+      "baseline_e2e_large": 0.4877,
+      "final": 0.5125,
+      "delta": 0.0248,
+      "note": "팀 val 최종 점수(0.5125)와 공식 val이 소수점까지 정확히 일치 - 팀 val 과적합이 아니라 완전히 일반화되는 개선"
+    }
+  },
+  "files_in_this_folder": {
+    "16_train_gru_e2e_jaccard.py": "실제 학습에 쓴 스크립트 (resume_from + lambda_jaccard + pos_weight_cap + schedule_epochs 인자)",
+    "06_train_gru_e2e.py": "16번이 모듈로 import하는 원본 e2e 학습 스크립트 (의존성)",
+    "inference_gru_e2e.py": "e2e_large와 동일 - 체크포인트의 config를 그대로 읽어 로드하므로 코드 변경 없음",
+    "best.pt": "[Colab에서 다운로드 필요] ckpt_e2e_large_sj8_pw3_2ep/best.pt (주의: 폴더명은 2ep이지만 실제로는 schedule_epochs=2로 1epoch만 돈 결과물)",
+    "mission4-1_official.csv / _probs.csv": "[Colab에서 다운로드 필요] outputs/final_official.csv, outputs/final_official_probs.csv (공식 val 3,640건, score 0.5125)",
+    "val_holdout_probs.csv": "[Colab에서 다운로드 필요] outputs/sj8_pw3_2ep_probs.csv (팀 val 5,840건, 08_ensemble.py 가중치 탐색용)",
+    "label_map.json / requirements.txt / text_clean.py": "ensemble/4-1과 동일 (복사본)"
+  }
 }
