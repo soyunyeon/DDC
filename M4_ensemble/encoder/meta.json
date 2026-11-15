@@ -13,7 +13,7 @@
   "class_order_note": "모든 확률 열과 모델 출력은 공식 SYMPTOM_CLASSES 순서 그대로",
   "missions": {
     "4-1": {
-      "run": "klue_sj1",
+      "run": "klue_sj4",
       "desc": "KLUE-RoBERTa, BCE + soft Jaccard 손실로 1 epoch 추가 학습"
     },
     "4-2": {
@@ -41,9 +41,9 @@
     "selected_on": "val_holdout에서 t_min {5,6,7,8,10,12,15,20} x k {1,2,3,4} 시뮬레이션 (sim_42.py)"
   },
   "scores": {
-    "klue_sj1": {
-      "val_holdout_41": 0.4798,
-      "official_41": 0.4817
+    "klue_sj4": {
+      "val_holdout_41": 0.5099,
+      "official_41": 0.513
     },
     "klue_base": {
       "val_holdout_41": 0.4515,
