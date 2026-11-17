@@ -1,3 +1,4 @@
 *.pt filter=lfs diff=lfs merge=lfs -text
 *.npy filter=lfs diff=lfs merge=lfs -text
 Mission4/Qwen3_LoRA/adapter/*.safetensors filter=lfs diff=lfs merge=lfs -text
+M4_ensemble/qwen/adapter_step1000/adapter_model.safetensors filter=lfs diff=lfs merge=lfs -text
