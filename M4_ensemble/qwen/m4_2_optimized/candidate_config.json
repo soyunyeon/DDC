@@ -1,0 +1,29 @@
+{
+  "model": "Qwen v1",
+  "policy": {
+    "mode": "dynamic",
+    "start": 6,
+    "end": 24,
+    "confidence": 0.7,
+    "persistence": 1
+  },
+  "temporal_pool": "raw",
+  "thresholds": {
+    "고열": 0.325,
+    "구토": 0.225,
+    "두통": 0.5,
+    "복통": 0.475,
+    "어지러움": 0.6,
+    "열상": 0.175,
+    "오심": 0.125,
+    "전신쇠약": 0.3,
+    "호흡곤란": 0.325
+  },
+  "tune_cv_score": 0.44171144997468587,
+  "holdout_score": 0.43275591832809013,
+  "holdout_macro_f1": 0.5410696378070092,
+  "holdout_earliness": 0.7998155654826212,
+  "baseline_previous_holdout": 0.432017,
+  "baseline_new_cv_holdout": 0.432756,
+  "warning": "Holdout was previously inspected. Deployment requires reproducing causal pooling exactly."
+}
