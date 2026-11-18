@@ -1,0 +1,274 @@
+import csv
+import json
+import joblib
+import hashlib
+from pathlib import Path
+from collections import defaultdict
+
+import numpy as np
+
+# ==========================================
+# Mission 4-2
+# Learned Stop Threshold Sweep
+# 기존 모델 재사용 / 추가 학습 없음
+# ==========================================
+
+ROOT = Path("Results/M42_Learned")
+
+MODEL_PATH = ROOT / "stop_model.pkl"
+
+PRED_PATH = Path(
+    "Results/V13A/early10_val.csv"
+)
+
+PROB_PATH = Path(
+    "Results/M4_1/"
+    "t5_t5_m41_v13a_targeted_3000_val_probs.jsonl"
+)
+
+THRESHOLDS = [
+    0.15, 0.25, 0.35,
+    0.45, 0.55, 0.65
+]
+
+LABELS = [
+    "고열", "구토", "두통",
+    "복통", "어지러움", "열상",
+    "오심", "전신쇠약", "호흡곤란"
+]
+
+IDX = {s: i for i, s in enumerate(LABELS)}
+
+for p in [MODEL_PATH, PRED_PATH, PROB_PATH]:
+    assert p.is_file(), f"파일 없음: {p}"
+
+# ==========================================
+# 1. 모델 불러오기
+# ==========================================
+
+saved = joblib.load(MODEL_PATH)
+model = saved["model"]
+
+assert saved["labels"] == LABELS
+assert model.n_features_in_ == 39
+assert list(model.classes_) == [0, 1]
+
+print("모델:", type(model).__name__)
+print("Feature:", model.n_features_in__)
+
+# ==========================================
+# 2. 예측 데이터 불러오기
+# ==========================================
+
+preds = defaultdict(dict)
+calls = defaultdict(dict)
+
+with PRED_PATH.open(
+    encoding="utf-8-sig", newline=""
+) as f:
+
+    for r in csv.DictReader(f):
+        lf = r["label_file"]
+        t = int(r["step"])
+
+        names = frozenset(
+            x.strip()
+            for x in r["symptom"].split(";")
+            if x.strip()
+        )
+
+        assert names.issubset(set(LABELS))
+        assert t not in preds[lf]
+
+        preds[lf][t] = (r["symptom"], names)
+
+
+with PROB_PATH.open(encoding="utf-8") as f:
+    for line in f:
+        r = json.loads(line)
+
+        lf = r["label_file"]
+        t = int(r["step"])
+        p = np.asarray(r["probs"], dtype=np.float32)
+
+        assert p.shape == (9,)
+        assert np.all(np.isfinite(p))
+        assert np.all((p >= 0) & (p <= 1))
+        assert t not in calls[lf]
+
+        calls[lf][t] = p
+
+assert len(calls) == len(preds) == 5840
+assert calls.keys() == preds.keys()
+
+for lf in calls:
+    n = len(calls[lf])
+    expected = set(range(1, n + 1))
+
+    assert set(calls[lf]) == expected
+    assert set(preds[lf]) == expected
+
+# ==========================================
+# 3. 기존 평가 통화 분할 재현
+# ==========================================
+
+def is_holdout(lf):
+    h = hashlib.sha256(lf.encode()).hexdigest()[:8]
+    return int(h, 16) % 4 == 0
+
+test_calls = sorted(
+    lf for lf in calls if is_holdout(lf)
+)
+
+assert len(test_calls) > 1000
+
+print("평가 통화:", len(test_calls))
+
+# ==========================================
+# 4. 기존 학습과 동일한 Feature 생성
+# ==========================================
+
+def make_features(lf, t):
+
+    rows = calls[lf]
+
+    p0 = rows[t]
+    p1 = rows[t-1] if t > 1 else p0
+    p2 = rows[t-2] if t > 2 else p1
+
+    d1 = np.abs(p0-p1)
+    d2 = np.abs(p1-p2)
+
+    now = preds[lf][t][1]
+
+    prev = (
+        preds[lf][t-1][1]
+        if t > 1 else frozenset()
+    )
+
+    prev2 = (
+        preds[lf][t-2][1]
+        if t > 2 else frozenset()
+    )
+
+    active = [IDX[x] for x in now]
+
+    extra = np.array([
+        min(t, 100),
+        len(now),
+        int(now == prev),
+        int(now == prev == prev2),
+        float(d1.max()),
+        float(max(d1.max(), d2.max())),
+        float(np.min(p0[active])) if active else 0,
+        float(np.min(np.abs(p0 - 0.5))),
+        float(np.mean(np.abs(p0 - 0.5))),
+        float(abs(p0[IDX["구토"]] - p0[IDX["오심"]])),
+        float(p0[IDX["구토"]]),
+        float(p0[IDX["오심"]])
+    ], dtype=np.float32)
+
+    result = np.concatenate([
+        p0, d1, d2, extra
+    ])
+
+    assert len(result) == 39
+
+    return result
+
+# ==========================================
+# 5. 전체 평가 Feature 생성
+# ==========================================
+
+features = []
+call_ranges = {}
+
+for lf in test_calls:
+
+    start = len(features)
+    n = len(calls[lf])
+
+    for t in range(6, n + 1):
+        features.append(make_features(lf, t))
+
+    call_ranges[lf] = (start, len(features))
+
+print("전체 추론 시점:", len(features))
+
+if features:
+    X = np.asarray(features, dtype=np.float32)
+    scores = model.predict_proba(X)[:, 1]
+else:
+    scores = np.empty(0, dtype=np.float32)
+
+assert len(scores) == len(features)
+assert np.all(np.isfinite(scores))
+
+# ==========================================
+# 6. 임계값별 중단 결과 생성
+# ==========================================
+
+for threshold in THRESHOLDS:
+
+    name = f"learned{int(threshold*100):03d}"
+    output = ROOT / f"{name}.csv"
+
+    # 기존 결과 보호
+    assert not output.exists(), (
+        f"기존 파일이 있습니다: {output}"
+    )
+
+    halt_steps = []
+
+    with output.open(
+        "w", encoding="utf-8", newline=""
+    ) as f:
+
+        writer = csv.writer(f)
+
+        writer.writerow([
+            "label_file",
+            "halt_step",
+            "symptom"
+        ])
+
+        for lf in test_calls:
+
+            last = len(calls[lf])
+            start, end = call_ranges[lf]
+
+            chosen = last
+
+            for offset, score in enumerate(
+                scores[start:end]
+            ):
+
+                t = offset + 6
+
+                if not preds[lf][t][1]:
+                    continue
+
+                if score >= threshold:
+                    chosen = t
+                    break
+
+            writer.writerow([
+                lf,
+                chosen,
+                preds[lf][chosen][0]
+            ])
+
+            halt_steps.append(chosen)
+
+    print("\n" + "=" * 50)
+    print("실험:", name)
+    print("Threshold:", threshold)
+    print("통화:", len(halt_steps))
+    print("평균 중단:", round(float(np.mean(halt_steps)), 2))
+    print(
+        "10회 이내 중단:",
+        f"{np.mean(np.array(halt_steps) <= 10)*100:.2f}%"
+    )
+    print("저장:", output)
+
+print("\n임계값 탐색 CSV 생성 완료!")

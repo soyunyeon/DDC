@@ -1,0 +1,14 @@
+{
+  "gen_weight": 0.0,
+  "pos_weight": 1.0,
+  "jaccard_weight": 0.5,
+  "model": "kobart",
+  "base_model": "gogamza/kobart-base-v2",
+  "max_input": 384,
+  "epochs": 3,
+  "batch": 1,
+  "accum": 2,
+  "learning_rate": 3e-05,
+  "threshold": 0.5,
+  "run": "kobart_m41_dynamic_v6_4000"
+}

@@ -1,0 +1,176 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from transformers import (
+    AutoConfig,
+    AutoModelForSeq2SeqLM,
+)
+
+
+class SymptomSeq2Seq(nn.Module):
+    accepts_loss_kwargs = False
+    def __init__(self, model_name=None, config_dir=None):
+        super().__init__()
+
+        if model_name is not None:
+            self.backbone = (
+                AutoModelForSeq2SeqLM.from_pretrained(
+                    model_name
+                )
+            )
+        elif config_dir is not None:
+            config = AutoConfig.from_pretrained(
+                config_dir,
+                local_files_only=True
+            )
+            self.backbone = (
+                AutoModelForSeq2SeqLM.from_config(config)
+            )
+        else:
+            raise ValueError("모델 경로가 필요합니다.")
+
+        hidden = self.backbone.config.d_model
+
+        self.dropout = nn.Dropout(0.1)
+        self.generation_weight = 0.5
+        self.pos_weight = 1.0
+        self.class_pos_weights = None
+        self.jaccard_weight = 0.0
+        self.classifier = nn.Linear(hidden, 9)
+
+        self.backbone.config.use_cache = False
+
+    def gradient_checkpointing_enable(self, **kwargs):
+        self.backbone.gradient_checkpointing_enable(
+            **kwargs
+        )
+
+    def encode(self, input_ids, attention_mask):
+        encoder = self.backbone.get_encoder()
+
+        out = encoder(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            return_dict=True,
+        )
+
+        return out.last_hidden_state
+
+    def pool(self, hidden, attention_mask):
+        mask = attention_mask.unsqueeze(-1)
+        mask = mask.to(hidden.dtype)
+
+        pooled = (hidden * mask).sum(dim=1)
+        pooled = pooled / mask.sum(dim=1).clamp(min=1)
+
+        return pooled
+
+    def forward(
+        self,
+        input_ids,
+        attention_mask,
+        labels=None,
+        multilabel=None,
+    ):
+        if labels is not None:
+            out = self.backbone(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=labels,
+                use_cache=False,
+                return_dict=True,
+            )
+
+            hidden = out.encoder_last_hidden_state
+            generation_loss = out.loss
+
+        else:
+            hidden = self.encode(
+                input_ids,
+                attention_mask
+            )
+            generation_loss = None
+
+        pooled = self.pool(hidden, attention_mask)
+        logits = self.classifier(
+            self.dropout(pooled)
+        )
+
+        result = {"logits": logits}
+
+        if multilabel is not None:
+            classification_loss = (
+                F.binary_cross_entropy_with_logits(
+                    logits.float(),
+                    multilabel.float(),
+                pos_weight=(
+    torch.as_tensor(
+        self.class_pos_weights,
+        dtype=torch.float32,
+        device=next(self.parameters()).device
+    )
+    if self.class_pos_weights is not None
+    else torch.full(
+                    (9,), self.pos_weight,
+                    device=logits.device,
+                    dtype=torch.float32
+                )
+)
+                )
+            )
+            if self.jaccard_weight > 0:
+                target = multilabel.float()
+                prob = torch.sigmoid(logits.float())
+                intersection = (prob * target).sum(dim=-1)
+                union = (prob + target - prob * target).sum(dim=-1)
+                jaccard_loss = 1.0 - (intersection + 1e-6) / (union + 1e-6)
+                classification_loss = classification_loss + self.jaccard_weight * jaccard_loss.mean()
+
+            if generation_loss is not None:
+                loss = (
+                    classification_loss
+                    + self.generation_weight * generation_loss
+                )
+            else:
+                loss = classification_loss
+
+            result["loss"] = loss
+
+        return result
+
+    @torch.no_grad()
+    def predict_probs(self, input_ids, attention_mask):
+        hidden = self.encode(
+            input_ids,
+            attention_mask
+        )
+
+        pooled = self.pool(hidden, attention_mask)
+        logits = self.classifier(
+            self.dropout(pooled)
+        )
+
+        return torch.sigmoid(logits.float())
+
+
+def load_checkpoint(checkpoint_dir, device):
+    from pathlib import Path
+
+    checkpoint_dir = Path(checkpoint_dir)
+
+    model = SymptomSeq2Seq(
+        config_dir=checkpoint_dir
+    )
+
+    state = torch.load(
+        checkpoint_dir / "model.pt",
+        map_location="cpu",
+        weights_only=True,
+    )
+
+    model.load_state_dict(state)
+    model.to(device)
+    model.eval()
+
+    return model
