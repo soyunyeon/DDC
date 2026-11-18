@@ -2,7 +2,7 @@
 
 체크포인트 파일 (.pt/.pth/.ckpt) -> https://drive.google.com/file/d/1cCyKFonZ43G02XPkHmNq5Ll-ehs0TzW6/view?usp=sharing
 
-요청 항목 순서대로 정리했다. **최종 갱신 11/15: 4-1 모델을 `klue_sj4`(BCE + 4.0 × soft Jaccard)로 교체했고, 체크포인트도 새 버전으로 바뀌었다. 예전 체크포인트를 받았다면 다시 받아야 한다.** 점수는 전부 **공식 score.py 함수로 계산한 값**(proxy 아님)이고, 판정은 0.5 고정, 0.5 이상이 없으면 빈 리스트다.
+요청 항목 순서대로 정리했다. **최종 갱신 11/18: 4-2 모델을 `klue_pw165`(BCE, pos_weight 1.65)로, 중단 정책을 t_min 7, k 3으로 바꿨다. 4-1은 `klue_sj4` 그대로다. 체크포인트도 새 버전이라 예전 것을 받았다면 다시 받아야 한다.** 점수는 전부 **공식 score.py 함수로 계산한 값**(proxy 아님)이고, 판정은 0.5 고정, 0.5 이상이 없으면 빈 리스트다.
  
 ## Mission 4-1
  
@@ -11,8 +11,8 @@
 | 파일 | 모델 | 용도 |
 |:--|:--|:--|
 | `m41_val_holdout_probs_klue_sj4.csv` | KLUE-RoBERTa, BCE + 4.0 × soft Jaccard | **4-1 제출 모델** |
-| `m41_val_holdout_probs_klue_base.csv` | KLUE-RoBERTa, BCE | 4-2 제출 모델 (4-1 앙상블 후보로도 사용 가능) |
-| `official_probs_klue_sj4.csv`, `official_probs_klue_base.csv` | 위와 같음 | 공식 Validation 3,640건 (평가 확인용) |
+| `m41_val_holdout_probs_klue_pw165.csv` | KLUE-RoBERTa, BCE (pos_weight 1.65) | 4-2 제출 모델 (4-1 앙상블 후보로도 사용 가능) |
+| `official_probs_klue_sj4.csv`, `official_probs_klue_pw165.csv` | 위와 같음 | 공식 Validation 3,640건 (평가 확인용) |
  
 - 컬럼: `label_file,step,고열,구토,두통,복통,어지러움,열상,오심,전신쇠약,호흡곤란` (요청 형식 그대로)
 - val_holdout = 팀 고정 split의 val 5,840건 (`val_calls.csv`). 공통 전처리 결과 그대로 썼다.
@@ -22,13 +22,13 @@
 | 4-1 점수 | val_holdout | 공식 Validation |
 |:--|:--|:--|
 | klue_sj4 (제출) | 0.5099 | 0.5130 |
-| klue_base | 0.4515 | 0.4490 |
+| klue_pw165 | 0.4653 | 0.4673 |
  
 ### 2. 최종 제출용
  
 | 항목 | 내용 |
 |:--|:--|
-| 체크포인트 | `ckpt/klue_encoder.pt` (846MB). 4-1 `klue_sj4`와 4-2 `klue_base`가 둘 다 들어 있다. **GitHub 100MB 제한을 넘어서 Google Drive 링크로 전달** (11/15 새 버전, 크기는 예전과 같음) |
+| 체크포인트 | `ckpt/klue_encoder.pt` (846MB). 4-1 `klue_sj4`와 4-2 `klue_pw165`가 둘 다 들어 있다. **GitHub 100MB 제한을 넘어서 Google Drive 링크로 전달** (11/18 새 버전, 크기는 예전과 같음) |
 | 모델 코드 | `encoder_model.py` (`StreamingEncoder` 클래스: 체크포인트 로드, 입력 만들기, 스트리밍 추론) |
 | Predictor 구현 | `predictor_block.py` (공식 inference.py의 Predictor 클래스 전체: load_model, reset, step, finalize) |
 | 클래스 순서 | 공식 `SYMPTOM_CLASSES` 순서와 **같다**. 체크포인트에도 클래스 순서가 저장돼 있고, 로드할 때 다르면 에러를 낸다. 별도 label_map 없음 |
@@ -48,7 +48,7 @@
 from encoder_model import StreamingEncoder
 enc_path = os.path.join(os.path.dirname(ckpt_path), "klue_encoder.pt")
 self.enc = StreamingEncoder.load(enc_path, device=self.device, mission=self.mission)
-#   mission="4-1" -> soft Jaccard 모델, mission="4-2" -> BCE 모델
+#   mission="4-1" -> soft Jaccard 모델, mission="4-2" -> BCE(pos_weight 1.65) 모델
  
 # reset 안에서
 self.enc.reset()
@@ -59,30 +59,46 @@ p_enc = self.enc.add(utt.speaker, utt.text)   # numpy (9,), SYMPTOM_CLASSES 순�
  
 ### 3. 하이퍼파라미터 / config
 - 모델 구조 설정(config.json)과 토크나이저는 체크포인트 안에 들어 있어서 따로 줄 파일이 없다. 인터넷 없이 로드된다.
-- 입력 설정(max_len 512, head 128)과 4-2 중단 정책(t_min 6, k 3)도 체크포인트에 저장돼 있다. 같은 내용을 `meta.json`에 적어 두었다.
+- 입력 설정(max_len 512, head 128)과 4-2 중단 정책(t_min 7, k 3)도 체크포인트에 저장돼 있다. 같은 내용을 `meta.json`에 적어 두었다.
 ## Mission 4-2
  
 ### 1. 중단 정책
 - 코드: `predictor_block.py`의 `step()` 4-2 부분 (제출용), `sim_42.py` (저장된 확률로 정책을 고르는 시뮬레이터)
-- 규칙: 지금까지 받은 발화 수 t ≥ **t_min 6**이고, 확률 0.5 이상인 증상 집합이 비어 있지 않으면서 **k = 3번 연속 같으면** 중단하고 그 집합을 반환
+- 규칙: 지금까지 받은 발화 수 t ≥ **t_min 7**이고, 확률 0.5 이상인 증상 집합이 비어 있지 않으면서 **k = 3번 연속 같으면** 중단하고 그 집합을 반환
 - 끝까지 중단하지 않으면 마지막 시점의 0.5 이상 증상 집합 (비어 있을 수 있음)
 - 중단 판단 기준과 판정 기준 모두 0.5. 별도 confidence 점수는 쓰지 않는다. 전체 길이는 쓰지 않는다
 - t_min ∈ {5, 6, 7, 8, 10, 12, 15, 20}, k ∈ {1, 2, 3, 4}를 val_holdout에서 시뮬레이션해서 골랐다
-- 확률은 BCE 모델(`klue_base`) 것을 쓴다. soft Jaccard 모델은 일찍 확신해서 덜 정확한 시점에 멈추기 때문에 4-2에서 더 낮았다 (soft Jaccard 비중 1.0 모델 기준 val_holdout 0.4258, 공식 0.4293)
+- 확률은 `klue_pw165` 것을 쓴다. `klue_base`(BCE)에서 9개 클래스에 같은 정답 가중치 1.65를 주고 1 epoch 더 학습한 모델이다. 0.5를 넘기는 데 소극적이던 증상(특히 오심)을 더 적극적으로 말한다.
+- `klue_base`(t_min 6, k 3) 대비 val_holdout +0.0028, 공식 Validation +0.0056. 두 데이터를 합치면 약 +0.004이고 나을 확률은 약 95%라 교체했다.
+- soft Jaccard 모델은 일찍 확신해서 덜 정확한 시점에 멈추기 때문에 4-2에서 더 낮았다 (soft Jaccard 비중 1.0 모델 기준 val_holdout 0.4258, 공식 0.4293)
 ### 2. val_holdout 통화별 4-2 최종 예측
-- `m42_val_holdout_pred_klue_base.csv`: 통화당 1행, 5,840행
+- `m42_val_holdout_pred_klue_pw165.csv`: 통화당 1행, 5,840행
 - 컬럼: `label_file, halt_step, symptom`(공식 형식, `;`로 연결), 9개 증상 0/1, `n_utt_scoring_only`(통화 전체 발화 수, 채점과 분석용이며 정책에는 쓰지 않음)
 ### 3. 현재 4-2 성능 (공식 채점 함수 기준)
  
 | | val_holdout | 공식 Validation |
 |:--|:--|:--|
-| 4-2 점수 | 0.4422 | 0.4464 |
-| Macro-F1 | 0.5512 | 0.5576 |
-| 평균 조기판단력 | 0.8021 | 0.8006 |
+| 4-2 점수 | 0.4449 | 0.4521 |
+| Macro-F1 | 0.5425 | 0.5514 |
+| 평균 조기판단력 | 0.8202 | 0.8198 |
  
 - 평가 방식: 공식 score.py의 `macro_f1`, `earliness_weight`를 그대로 import해서 계산 (score.py 4-2 채점과 값이 같은지 확인함)
 - 공식 Validation은 정책을 고른 뒤 평가만 했다
-- 오심 F1이 0.12로 가장 낮다. 원인은 라벨 불일치 (오심 통화의 85%는 대화에 메스꺼움 표현이 없음). 자세한 분석은 `M4_Encoder_실험결과.md` 6장
+- 오심 F1이 공식 Validation 기준 0.28로 가장 낮다 (`klue_base`는 0.12). 원인은 라벨 불일치 (오심 통화의 85%는 대화에 메스꺼움 표현이 없음). 자세한 분석은 `M4_Encoder_실험결과.md` 6장
 ## 앙상블 시 참고
 - 우리 쪽 실험에서는 BCE 모델끼리 평균을 내면 0.5 고정 판정에서 단일 모델보다 낮았다. 평균을 내면 확률이 가운데로 모여 0.5를 넘는 증상이 줄고 빈 예측이 늘기 때문이다 (KLUE + DeBERTa + mmBERT 최적 가중치가 0.9 : 0 : 0.1).
 - `klue_sj4` 확률은 soft Jaccard(비중 4.0)로 학습해서 BCE 모델보다 확신이 강하게 나온다. 다른 모델과 가중치를 탐색할 때 이 차이가 반영된다.
+- `klue_pw165` 확률은 정답 가중치 1.65로 학습해서 보통 BCE 모델보다 전체적으로 조금 높게 나온다. 다른 BCE 모델과 평균을 내면 확률이 가운데로 모이는 문제를 어느 정도 상쇄한다.
+- 앙상블 점수도 공식 score.py 함수(`moment_score`, `macro_f1`, `earliness_weight`)로 재야 이 문서의 숫자와 비교할 수 있다. sklearn macro F1과는 값이 다르다.
+## 폴더 안 파일 (GitHub `encoder/`)
+ 
+| 파일 | 내용 |
+|:--|:--|
+| `m41_val_holdout_probs_klue_sj4.csv`, `official_probs_klue_sj4.csv` | 4-1 제출 모델 확률 (팀 val, 공식 Validation) |
+| `m41_val_holdout_probs_klue_pw165.csv`, `official_probs_klue_pw165.csv` | 4-2 제출 모델 확률 (팀 val, 공식 Validation) |
+| `m42_val_holdout_pred_klue_pw165.csv` | 4-2 통화별 최종 예측 (t_min 7, k 3) |
+| `meta.json` | 모델, 입력 형식, 중단 정책, 점수 요약 |
+| `encoder_model.py`, `predictor_block.py`, `sim_42.py`, `requirements.txt` | 모델 코드, 제출용 Predictor, 4-2 정책 시뮬레이터, 패키지 |
+| `README_encoder.md` | 이 문서 |
+ 
+체크포인트 `klue_encoder.pt`는 Google Drive 링크로 따로 받는다. 예전 `klue_base`, `klue_sj1` 파일은 더 이상 쓰지 않아 지웠다.
